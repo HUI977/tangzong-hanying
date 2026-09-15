@@ -1,0 +1,1755 @@
+/*
+  绢本设色设计系统
+  源出开源项目 xianmap (https://github.com/qiaoshouqing/xianmap, Copyright (c) 2026 qiaoshouqing, MIT)；本项目由其二次开发，详见 NOTICE.md
+*/
+/* ── 長安 · 西安 双城舆图 —— 绢本设色设计系统 ───────────────── */
+
+:root {
+  --ink: #2a241b;
+  --ink-soft: #5a4f3e;
+  --cinnabar: #9e3b2c;        /* 朱砂 */
+  --cinnabar-deep: #7c2d1c;
+  --vermilion: #c4502f;
+  --silk: #f4ead2;            /* 绢 */
+  --silk-deep: #e9dab5;
+  --paper: #faf6ec;
+  --gold: #b58a3a;            /* 泥金 */
+  --azurite: #4f7d77;         /* 石绿 */
+  --hairline: #cdbb90;
+  --tang-t: 0.55;
+
+  --font-brush: 'Ma Shan Zheng', 'Noto Serif SC', serif;
+  --font-xi: 'ZCOOL XiaoWei', 'Noto Serif SC', serif;
+  --font-body: 'Noto Serif SC', 'Songti SC', serif;
+
+  /* 绢丝纹理 */
+  --silk-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.26 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── 地图画布 ── */
+.map-page { position: relative; height: 100dvh; width: 100vw; overflow: hidden; }
+.map-container { position: absolute; inset: 0; }
+.map-container .maplibregl-canvas { outline: none; }
+
+/* ── 唐图标注（HTML Marker） ── */
+.tang-label {
+  font-family: var(--font-xi);
+  color: #6b3a22;
+  opacity: calc(var(--tang-t) * 1);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  text-shadow:
+    0 0 3px rgba(244, 234, 210, 0.9),
+    0 0 6px rgba(244, 234, 210, 0.7);
+  transition: opacity 0.25s ease;
+  letter-spacing: 0.08em;
+}
+.tang-label-hidden { opacity: 0 !important; }
+.tang-label-vertical { writing-mode: vertical-rl; letter-spacing: 0.15em; }
+.tang-label-ward { font-size: 13px; }
+.tang-label-palace {
+  font-family: var(--font-brush);
+  font-size: 21px;
+  color: var(--cinnabar-deep);
+  letter-spacing: 0.18em;
+}
+.tang-label-market {
+  font-family: var(--font-brush);
+  font-size: 19px;
+  color: #7a5212;
+  letter-spacing: 0.2em;
+}
+.tang-label-water {
+  font-family: var(--font-xi);
+  font-size: 14px;
+  color: #355d57;
+  font-style: italic;
+  letter-spacing: 0.2em;
+}
+.tang-label-garden { font-size: 14px; color: #4d5c33; letter-spacing: 0.2em; }
+.tang-label-gate {
+  font-size: 11.5px;
+  color: var(--cinnabar-deep);
+  background: rgba(244, 234, 210, 0.85);
+  border: 1px solid rgba(158, 59, 44, 0.55);
+  padding: 1px 5px 2px;
+  border-radius: 2px;
+}
+/* 城门标签外移方向：left/right 竖直中心对齐圆心；up/down 水平中心对齐圆心 */
+.tang-label-g-left { transform: translateX(-8px); }
+.tang-label-g-right { transform: translateX(8px); }
+.tang-label-g-up { transform: translateY(-8px); }
+.tang-label-g-down { transform: translateY(8px); }
+.tang-label-street {
+  font-size: 12px;
+  color: #8a6b3f;
+  letter-spacing: 0.5em;
+}
+.tang-label-site {
+  font-size: 11.5px;
+  color: #7a5212;
+  margin-top: 3px;
+  letter-spacing: 0.06em;
+}
+.tang-label-poem {
+  font-family: var(--font-brush);
+  font-size: 15px;
+  color: rgba(90, 79, 62, 0.72);
+  letter-spacing: 0.3em;
+}
+.tang-label-canal {
+  font-size: 11px;
+  color: #44706a;
+  letter-spacing: 0.2em;
+  font-style: italic;
+}
+.tang-label-modernref {
+  font-size: 11.5px;
+  color: #46606e;
+  background: rgba(250, 246, 236, 0.75);
+  border: 1px dashed rgba(70, 96, 110, 0.6);
+  padding: 1px 6px 2px;
+  border-radius: 2px;
+  letter-spacing: 0.12em;
+}
+.tang-label-hanref {
+  font-size: 11.5px;
+  color: #2f4a3e;
+  background: rgba(248, 246, 234, 0.78);
+  border: 1px dashed rgba(61, 99, 83, 0.7);
+  padding: 1px 6px 2px;
+  border-radius: 2px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+.tang-label-hangate {
+  font-size: 11px;
+  color: #2f4a3e;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  text-shadow: 0 0 3px #f4ead2, 0 0 6px #f4ead2, 0 0 9px #f4ead2;
+}
+.tang-label-tomb {
+  font-size: 11px;
+  color: #6b3d22;
+  letter-spacing: 0.15em;
+  font-weight: 600;
+  background: rgba(248, 246, 234, 0.82);
+  border: 1px solid rgba(122, 86, 32, 0.45);
+  padding: 4px 1px;
+  border-radius: 2px;
+  white-space: nowrap;
+  text-shadow: none;
+  /* 竖排标签悬于方印图标上方：底边抬升避开整个方印图标（约 14px）+ 间隙 */
+  margin-bottom: 18px;
+}
+/* 有典故的坊：金点角标提示可点击 */
+.tang-label-has-story::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 1.5px rgba(253, 248, 234, 0.9);
+}
+.tang-label-has-story { position: relative; }
+/* 悬停所高亮的有典故坊：标签反白（由 JS 按命中坊名同步 class） */
+.tang-label-ward.is-hover {
+  color: #fff8ec;
+  text-shadow:
+    0 0 3px rgba(60, 20, 12, 0.55),
+    0 1px 4px rgba(60, 20, 12, 0.45);
+}
+.tang-label-ward.is-hover::after {
+  background: #fff8ec;
+  box-shadow: 0 0 0 1.5px rgba(158, 59, 44, 0.55);
+}
+
+/* ── 景点常驻标记 ── */
+.poi-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.poi-marker-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50% 50% 50% 2px;
+  transform: rotate(-45deg);
+  background: radial-gradient(circle at 35% 30%, #c4502f, var(--cinnabar-deep));
+  border: 1.5px solid #fdf8ea;
+  box-shadow: 0 2px 5px rgba(42, 36, 27, 0.4);
+  transition: transform 0.15s;
+}
+.poi-marker:hover .poi-marker-dot { transform: rotate(-45deg) scale(1.25); }
+.poi-marker-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6e3326;
+  white-space: nowrap;
+  text-shadow:
+    0 0 3px rgba(250, 246, 236, 0.95),
+    0 0 6px rgba(250, 246, 236, 0.85);
+  transition: opacity 0.25s;
+}
+.poi-marker-name.tang-label-hidden { opacity: 0; }
+
+/* ── 题签（左上） ── */
+.title-card {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 10;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  max-width: 300px; /* 限宽，避免与顶部居中的语言切换器相撞 */
+  padding: 7px 12px 7px 9px;
+  background:
+    var(--silk-noise),
+    linear-gradient(168deg, rgba(250, 246, 236, 0.96), rgba(240, 229, 200, 0.96));
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.25);
+  outline-offset: 3px;
+  box-shadow: 0 10px 30px rgba(42, 36, 27, 0.18);
+}
+.title-logo {
+  display: block;
+  height: 44px;
+  width: auto;
+}
+.title-seal {
+  font-family: var(--font-brush);
+  background: var(--cinnabar);
+  color: var(--silk);
+  font-size: 21px;
+  line-height: 1.1;
+  padding: 5px 8px;
+  letter-spacing: 0.1em;
+  align-self: center;
+  border-radius: 3px;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.25);
+}
+.title-text h1 {
+  font-family: var(--font-brush);
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.title-text p {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+  margin-top: 3px;
+}
+.title-link {
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--cinnabar);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(158, 59, 44, 0.4);
+  padding-bottom: 1px;
+  margin-left: 6px;
+  transition: color 0.2s;
+}
+.title-link:hover { color: var(--cinnabar-deep); border-bottom-color: var(--cinnabar-deep); }
+
+/* ── 语言切换器（顶部居中） ── */
+.lang {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+}
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background:
+    var(--silk-noise),
+    linear-gradient(168deg, rgba(250, 246, 236, 0.96), rgba(240, 229, 200, 0.96));
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.2);
+  outline-offset: 2px;
+  border-radius: 3px;
+  color: var(--ink);
+  font-family: var(--font-xi);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(42, 36, 27, 0.16);
+  transition: transform 0.15s;
+}
+.lang-btn:hover { transform: translateY(-1px); }
+.lang-globe { color: var(--cinnabar); font-size: 12px; }
+.lang-menu {
+  list-style: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 132px;
+  padding: 5px;
+  background:
+    var(--silk-noise),
+    linear-gradient(168deg, #fbf7ee, #f0e5c8);
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.2);
+  outline-offset: 2px;
+  border-radius: 3px;
+  box-shadow: 0 14px 34px rgba(42, 36, 27, 0.28);
+}
+.lang-item {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  font-family: var(--font-xi);
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lang-item:hover { background: rgba(158, 59, 44, 0.08); color: var(--ink); }
+.lang-item.active { background: var(--cinnabar); color: var(--silk); }
+
+/* ── 时空滑杆（底部） ── */
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 10;
+  width: min(480px, calc(100vw - 28px));
+  padding: 12px 18px 9px;
+  background:
+    var(--silk-noise),
+    linear-gradient(180deg, rgba(250, 246, 236, 0.97), rgba(238, 226, 196, 0.97));
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.25);
+  outline-offset: 3px;
+  box-shadow: 0 12px 36px rgba(42, 36, 27, 0.22);
+}
+/* 滑杆轨道包裹层 */
+.dock-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* 古/今铜钱圆钮：置于滑动条两侧，圆心与轨道高度中心对齐（flex 行内垂直居中） */
+.dock-preset {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--font-brush);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(42, 36, 27, 0.18);
+  transition: all 0.2s;
+}
+.dock-preset:hover { transform: translateY(-2px); }
+.dock-preset.active {
+  background: var(--cinnabar);
+  color: var(--silk);
+  border-color: var(--cinnabar-deep);
+}
+.dock-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.dock-end {
+  font-family: var(--font-xi);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.dock-end-now { color: #5c6670; }
+.dock-end-tang { color: var(--cinnabar); }
+
+.dock-track input[type='range'] {
+  display: block;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #aeb6bb 0%, #cabd96 45%, var(--vermilion) 100%);
+  border: 1px solid rgba(90, 79, 62, 0.35);
+  cursor: pointer;
+  outline-offset: 4px;
+}
+/* 拇指：开元通宝铜钱（方孔圆钱） */
+.dock-track input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 4.5px, #a8843e 4.5px 5.5px, transparent 5.5px),
+    radial-gradient(circle at 35% 30%, #d8b76b, #b08a40 55%, #8a672a);
+  border: 2px solid #7a5a23;
+  box-shadow: 0 3px 8px rgba(42, 36, 27, 0.4), inset 0 0 4px rgba(255, 235, 190, 0.7);
+  cursor: grab;
+}
+.dock-track input[type='range']::-webkit-slider-thumb:active { cursor: grabbing; }
+.dock-track input[type='range']::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d8b76b, #b08a40 55%, #8a672a);
+  border: 2px solid #7a5a23;
+  box-shadow: 0 3px 8px rgba(42, 36, 27, 0.4);
+  cursor: grab;
+}
+.dock-caption {
+  text-align: center;
+  font-size: 10.5px;
+  letter-spacing: 0.25em;
+  color: rgba(90, 79, 62, 0.75);
+  margin-top: 6px;
+}
+
+/* ── 古今寻迹（右侧） ── */
+.poi-panel {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  bottom: 108px;
+  z-index: 10;
+  width: 300px;
+  display: flex;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.poi-panel.closed { transform: translateX(322px); }
+.poi-toggle {
+  position: absolute;
+  left: -30px;
+  top: 0;
+  width: 30px;
+  padding: 12px 0;
+  border: 1px solid var(--hairline);
+  border-right: none;
+  background: #5c6670;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 6px 0 0 6px;
+  box-shadow: -6px 4px 16px rgba(42, 36, 27, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.poi-toggle-text {
+  writing-mode: vertical-rl;
+  font-family: var(--font-xi);
+  font-size: 13px;
+  letter-spacing: 0.25em;
+}
+.poi-toggle-arrow { font-size: 14px; }
+.poi-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background:
+    var(--silk-noise),
+    linear-gradient(180deg, rgba(250, 246, 236, 0.97), rgba(242, 232, 206, 0.97));
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.25);
+  outline-offset: 3px;
+  box-shadow: 0 12px 36px rgba(42, 36, 27, 0.2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+.poi-header {
+  padding: 16px 18px 10px;
+  border-bottom: 1px dashed var(--hairline);
+  position: sticky;
+  top: 0;
+  /* 不透明背景遮蔽上滚内容，虚线之下不再透出 */
+  background:
+    var(--silk-noise),
+    #faf6ec;
+  z-index: 1;
+}
+.poi-header h2 {
+  font-family: var(--font-brush);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--cinnabar-deep);
+}
+.poi-header p { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.1em; margin-top: 2px; }
+.poi-list { list-style: none; padding: 10px 12px 6px; }
+.poi-card {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 252, 244, 0.6);
+  border: 1px solid rgba(205, 187, 144, 0.6);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  color: var(--ink);
+  transition: all 0.18s ease;
+}
+.poi-card:hover {
+  border-color: var(--cinnabar);
+  background: rgba(255, 250, 238, 0.95);
+  transform: translateX(-2px);
+  box-shadow: 4px 4px 0 rgba(158, 59, 44, 0.12);
+}
+.poi-card.selected { border-color: var(--cinnabar); box-shadow: 3px 3px 0 rgba(158, 59, 44, 0.2); }
+.poi-now, .poi-then { display: flex; align-items: center; gap: 7px; }
+.poi-then { margin-top: 3px; }
+.poi-tag {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  line-height: 17px;
+  text-align: center;
+  font-size: 10.5px;
+  border-radius: 2px;
+}
+.poi-tag-now { background: #5c6670; color: #fff; }
+.poi-tag-tang { background: var(--cinnabar); color: var(--silk); }
+.poi-name {
+  font-weight: 600;
+  font-size: 14.5px;
+  color: #6b7a52; /* 泥绿 */
+}
+.poi-tangname {
+  font-family: var(--font-xi);
+  font-size: 13px;
+  color: var(--cinnabar-deep);
+  border: 1px solid rgba(158, 59, 44, 0.55);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.poi-blurb { font-size: 11px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+.poi-footer {
+  padding: 10px 18px 16px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+/* ── 栏目 tab（寻迹 / 诗词 / 轶事） ── */
+.poi-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 12px 0;
+  border-bottom: 1px dashed var(--hairline);
+}
+.poi-tab {
+  flex: 1;
+  padding: 7px 0 6px;
+  font-family: var(--font-xi);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s;
+}
+.poi-tab:hover { color: var(--cinnabar-deep); }
+.poi-tab.active {
+  color: var(--cinnabar-deep);
+  border-bottom-color: var(--cinnabar);
+}
+
+/* 桌面（>900px）：栏目开关改为面板左缘竖向书签，与收合把手同款造型。
+   竖版 ≤900px 保持上方横向 tab 行，样式路径不变。
+   .poi-scroll 无定位 → 绝对定位的参照系是 .poi-panel，
+   既不随列表滚动，也不被滚动容器的 overflow 裁剪。 */
+@media (min-width: 901px) {
+  .poi-tabs {
+    position: absolute;
+    left: -30px;
+    top: 5px; /* 书签自菜单顶边开始 */
+    flex-direction: column;
+    gap: 2px;
+    width: 30px;
+    padding: 0;
+    margin-bottom: 14px;
+    border-bottom: none;
+  }
+  .poi-tab {
+    writing-mode: vertical-rl;
+    flex: none;
+    padding: 12px 0 10px;
+    font-size: 12.5px;
+    letter-spacing: 0.3em;
+    color: var(--cinnabar); /* 纵向书签文字改朱砂红 */
+    background: linear-gradient(180deg, var(--paper), var(--silk-deep));
+    border: 1px solid var(--hairline);
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 6px 0 0 6px;
+    box-shadow: -4px 3px 12px rgba(42, 36, 27, 0.12);
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+  }
+  .poi-tab:hover { color: var(--cinnabar-deep); }
+  .poi-tab.active {
+    color: var(--silk);
+    background: var(--cinnabar);
+    border-color: var(--cinnabar-deep);
+    border-right: none;
+    border-bottom: 1px solid var(--cinnabar-deep);
+  }
+  /* 把手移至菜单下方——展开时作收起钮（›）、收起时作展开钮（‹） */
+  .poi-toggle {
+    display: flex;
+    position: absolute;
+    left: -30px;
+    top: auto;
+    bottom: 5px;
+    width: 30px;
+    height: 34px;
+    padding: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    border-radius: 6px 0 0 6px;
+    background: #5c6670;
+  }
+  .poi-toggle-text { display: none; }
+  .poi-toggle-arrow { font-size: 15px; color: #fff; }
+}
+
+/* ── 诗词 / 轶事卡片 ── */
+.lore-list { padding-top: 8px; }
+.poem-card, .anecdote-card {
+  background: rgba(255, 252, 244, 0.6);
+  border: 1px solid rgba(205, 187, 144, 0.6);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.poem-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.poem-dynasty {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  line-height: 17px;
+  text-align: center;
+  font-size: 10.5px;
+  border-radius: 2px;
+  background: var(--cinnabar);
+  color: var(--silk);
+}
+.poem-title { font-family: var(--font-xi); font-size: 13.5px; color: var(--cinnabar-deep); font-weight: 600; }
+.poem-author { font-size: 11px; color: var(--ink-soft); margin-left: auto; }
+.poem-lines { margin-top: 6px; }
+.poem-line {
+  font-family: var(--font-xi);
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--ink);
+  letter-spacing: 0.06em;
+}
+.poem-place {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+}
+.anecdote-place {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--cinnabar);
+  letter-spacing: 0.08em;
+  display: inline-block;
+  border: 1px solid rgba(158, 59, 44, 0.55);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+button.anecdote-place {
+  font-family: inherit;
+  background: none;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+button.anecdote-place:hover {
+  background: rgba(158, 59, 44, 0.08);
+  border-color: var(--cinnabar);
+}
+/* 诗句地标卡（点击定位） */
+.poem-spot {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.poem-spot:hover .poem-line { color: var(--cinnabar-deep); }
+.anecdote-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.anecdote-person {
+  flex: none;
+  font-family: var(--font-brush);
+  font-size: 15px;
+  color: var(--cinnabar);
+}
+.anecdote-title { font-family: var(--font-xi); font-size: 13px; color: var(--cinnabar-deep); font-weight: 600; }
+.anecdote-text {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--ink);
+  text-align: justify;
+}
+
+/* ── 弹窗 ── */
+.tang-popup-wrap .maplibregl-popup-content {
+  font-family: var(--font-body);
+  background:
+    var(--silk-noise),
+    linear-gradient(168deg, #fbf7ee, #f0e5c8);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 10px 30px rgba(42, 36, 27, 0.3);
+  border-radius: 4px;
+  padding: 14px 16px 12px;
+  color: var(--ink);
+}
+.tang-popup-wrap .maplibregl-popup-tip { border-top-color: #f0e5c8; border-bottom-color: #fbf7ee; }
+.tang-popup-wrap .maplibregl-popup-close-button {
+  font-size: 18px;
+  color: var(--ink-soft);
+  right: 6px;
+  top: 4px;
+}
+.tang-popup-head { display: flex; align-items: center; gap: 10px; }
+.tang-popup-seal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  line-height: 34px;
+  text-align: center;
+  font-family: var(--font-brush);
+  font-size: 19px;
+  color: var(--silk);
+  background: var(--cinnabar);
+  border-radius: 4px;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
+}
+.tang-popup-eyebrow { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 0.15em; }
+.tang-popup-title {
+  font-family: var(--font-xi);
+  font-size: 19px;
+  color: var(--cinnabar-deep);
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+}
+.tang-popup-text {
+  margin-top: 9px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink);
+  border-top: 1px dashed var(--hairline);
+  padding-top: 8px;
+}
+.tang-popup-dian {
+  display: inline-block;
+  font-size: 10px;
+  background: var(--gold);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 4px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+/* POI 弹窗配图：本地缺失时露出绢底占位（onerror 隐藏 img） */
+.tang-popup-fig {
+  position: relative;
+  margin: 11px 0 0;
+  height: 118px; /* 横图基准高；竖图由 JS 按宽高比调高（上限 232px） */
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f7f0da 0%, #eee0bd 100%);
+  transition: height 0.55s ease;
+}
+.tang-popup-fig::before {
+  /* 远山塔影占位画（与坊卡占位同源） */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='118' viewBox='0 0 300 118'%3E%3Ccircle cx='248' cy='25' r='10' fill='%23b58a3a' opacity='.32'/%3E%3Ccircle cx='248' cy='25' r='15' fill='none' stroke='%23b58a3a' stroke-opacity='.16'/%3E%3Cpath d='M58 33q5-4 10 0M68 35q4-3 8 0' stroke='%235a4f3e' stroke-opacity='.32' fill='none'/%3E%3Cpath d='M0 82 44 52 74 78 108 46 142 80 172 58 204 76 236 50 268 72 300 56 300 118 0 118Z' fill='%2398a68f' opacity='.33'/%3E%3Cg fill='%236e5c3f' opacity='.5'%3E%3Cpath d='M96 51h18l-3-3H99z'/%3E%3Cpath d='M98.5 51h13v4h-13z'/%3E%3Cpath d='M100.5 55h9v4h-9z'/%3E%3Cpath d='M101.5 59h7v4h-7z'/%3E%3C/g%3E%3Cpath d='M0 96 50 76 88 92 124 72 168 90 214 74 254 88 300 78 300 118 0 118Z' fill='%2383917e' opacity='.5'/%3E%3Cpath d='M0 118 26 108 70 114 120 106 180 112 240 106 300 110 300 118Z' fill='%236f7d6c' opacity='.45'/%3E%3C/svg%3E") center / cover no-repeat;
+}
+/* 多图轮换：图片叠放，交叉淡入 */
+.tang-popup-fig-img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.tang-popup-fig-img.is-active { opacity: 1; }
+
+/* 轮换圆点指示（两张及以上才显示；点击跳转） */
+.tang-popup-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.tang-popup-dots.has-many { opacity: 1; pointer-events: auto; }
+.tang-popup-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(244, 234, 210, 0.8);
+  box-shadow: 0 0 0 1px rgba(42, 36, 28, 0.35);
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.tang-popup-dot.is-active { background: var(--cinnabar); transform: scale(1.3); }
+
+/* ── 坊典故升级卡 · 古籍版式：双栏版框 / 毛笔签题 / 收藏印 / 竖排眉注 / 菱花界 ── */
+.tang-popup-ward {
+  position: relative;
+  width: 296px;
+  padding: 15px 14px 12px;
+  border: 1px solid rgba(158, 59, 44, 0.5); /* 版框外线 */
+  border-radius: 3px;
+}
+.tang-popup-ward::before {
+  /* 版框内线（外粗内细＝双栏版式，外缘绢边由弹窗包裹层自然形成） */
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(158, 59, 44, 0.28);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.tang-popup-ward .tang-popup-seal {
+  transform: rotate(-3deg); /* 印章手工钤盖的微倾 */
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.35), 0 2px 5px rgba(124, 45, 28, 0.25);
+}
+.tang-popup-ward .tang-popup-title {
+  font-family: var(--font-brush); /* 坊名签题用毛笔大字 */
+  font-size: 23px;
+  letter-spacing: 0.12em;
+}
+.tang-popup-ward .tang-popup-eyebrow { letter-spacing: 0.22em; }
+.tang-popup-ward .tang-popup-head { margin-bottom: 1px; }
+
+/* 占位画：远山塔影印月；右下收藏印、右上竖排眉注 */
+.tang-popup-img {
+  position: relative;
+  margin: 12px 0 0;
+  height: 118px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f7f0da 0%, #eee0bd 100%);
+}
+.tang-popup-img::before {
+  /* 远山 · 塔 · 飞鸟 · 印月占位画 */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='118' viewBox='0 0 300 118'%3E%3Ccircle cx='248' cy='25' r='10' fill='%23b58a3a' opacity='.32'/%3E%3Ccircle cx='248' cy='25' r='15' fill='none' stroke='%23b58a3a' stroke-opacity='.16'/%3E%3Cpath d='M58 33q5-4 10 0M68 35q4-3 8 0' stroke='%235a4f3e' stroke-opacity='.32' fill='none'/%3E%3Cpath d='M0 82 44 52 74 78 108 46 142 80 172 58 204 76 236 50 268 72 300 56 300 118 0 118Z' fill='%2398a68f' opacity='.33'/%3E%3Cg fill='%236e5c3f' opacity='.5'%3E%3Cpath d='M96 51h18l-3-3H99z'/%3E%3Cpath d='M98.5 51h13v4h-13z'/%3E%3Cpath d='M100.5 55h9v4h-9z'/%3E%3Cpath d='M101.5 59h7v4h-7z'/%3E%3C/g%3E%3Cpath d='M0 96 50 76 88 92 124 72 168 90 214 74 254 88 300 78 300 118 0 118Z' fill='%2383917e' opacity='.5'/%3E%3Cpath d='M0 118 26 108 70 114 120 106 180 112 240 106 300 110 300 118Z' fill='%236f7d6c' opacity='.45'/%3E%3C/svg%3E") center / cover no-repeat;
+}
+.tang-popup-img-stamp {
+  /* 右下收藏印（z-index:2 压在轮换图之上） */
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-brush);
+  font-size: 14px;
+  color: rgba(244, 234, 210, 0.92);
+  background: rgba(158, 59, 44, 0.78);
+  border-radius: 3px;
+  transform: rotate(-4deg);
+  box-shadow: 0 1px 3px rgba(42, 36, 27, 0.25);
+}
+.tang-popup-img-note {
+  /* 右上竖排眉注（题签式） */
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  writing-mode: vertical-rl;
+  font-size: 9.5px;
+  letter-spacing: 0.3em;
+  color: rgba(90, 79, 62, 0.58);
+  background: rgba(250, 246, 236, 0.68);
+  border: 1px dashed rgba(90, 79, 62, 0.32);
+  border-radius: 2px;
+  padding: 6px 3px 4px;
+}
+.tang-popup-lore {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--ink);
+  text-align: justify;
+}
+/* 菱花界：居中泥金菱形 + 两侧渐隐界线 */
+.tang-popup-rule {
+  position: relative;
+  margin: 13px 0 11px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hairline) 22%, var(--hairline) 78%, transparent);
+}
+.tang-popup-rule::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--gold);
+}
+.tang-popup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tang-popup-chip {
+  /* 坊位小印：朱文印式（朱字朱框、无底） */
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--cinnabar);
+  background: transparent;
+  border: 1px solid rgba(158, 59, 44, 0.5);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.tang-popup-chip-dim {
+  color: var(--ink-soft);
+  border-color: rgba(90, 79, 62, 0.28);
+  background: rgba(90, 79, 62, 0.04);
+}
+/* 展卷式入场：图→典→界→印，依 50ms 阶梯浮现 */
+@keyframes tang-ward-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.tang-popup-ward .tang-popup-img,
+.tang-popup-ward .tang-popup-lore,
+.tang-popup-ward .tang-popup-rule,
+.tang-popup-ward .tang-popup-meta {
+  animation: tang-ward-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tang-popup-ward .tang-popup-lore { animation-delay: 0.05s; }
+.tang-popup-ward .tang-popup-rule { animation-delay: 0.1s; }
+.tang-popup-ward .tang-popup-meta { animation-delay: 0.15s; }
+@media (prefers-reduced-motion: reduce) {
+  .tang-popup-ward .tang-popup-img,
+  .tang-popup-ward .tang-popup-lore,
+  .tang-popup-ward .tang-popup-rule,
+  .tang-popup-ward .tang-popup-meta { animation: none; }
+}
+@media (max-width: 480px) {
+  .tang-popup-ward { width: min(292px, calc(100vw - 96px)); }
+}
+
+/* ── 坊典故图文卡 · 全屏古籍画册式（左画廊 / 右文页）── */
+.ward-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(42, 36, 27, 0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: ward-veil 0.3s ease both;
+}
+@keyframes ward-veil { from { opacity: 0; } }
+.ward-modal {
+  position: relative;
+  display: flex;
+  width: min(860px, 94vw);
+  height: min(560px, 88vh);
+  background: var(--paper);
+  border: none; /* 最外边框取消 */
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(20, 16, 10, 0.55);
+  animation: ward-modal-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ward-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 左：版画画廊 */
+.ward-modal-img {
+  width: 60%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f3ead2;
+  border-right: 1px solid var(--hairline);
+}
+.ward-main {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+.ward-main-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ward-counter {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  background: rgba(250, 246, 236, 0.88);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 3px 10px;
+  pointer-events: none;
+}
+.ward-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: rgba(250, 246, 236, 0.9);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  z-index: 2;
+}
+.ward-nav-prev { left: 10px; }
+.ward-nav-next { right: 10px; }
+.ward-nav:hover {
+  background: var(--cinnabar);
+  color: var(--paper);
+  border-color: var(--cinnabar);
+}
+.ward-main-empty {
+  margin: 0;
+  background: linear-gradient(180deg, #f7f0da 0%, #eee0bd 100%);
+}
+.ward-main-empty::before {
+  /* 远山 · 塔 · 飞鸟占位画（图像加载失败时兜底） */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='118' viewBox='0 0 300 118'%3E%3Ccircle cx='248' cy='25' r='10' fill='%23b58a3a' opacity='.32'/%3E%3Ccircle cx='248' cy='25' r='15' fill='none' stroke='%23b58a3a' stroke-opacity='.16'/%3E%3Cpath d='M58 33q5-4 10 0M68 35q4-3 8 0' stroke='%235a4f3e' stroke-opacity='.32' fill='none'/%3E%3Cpath d='M0 82 44 52 74 78 108 46 142 80 172 58 204 76 236 50 268 72 300 56 300 118 0 118Z' fill='%2398a68f' opacity='.33'/%3E%3Cg fill='%236e5c3f' opacity='.5'%3E%3Cpath d='M96 51h18l-3-3H99z'/%3E%3Cpath d='M98.5 51h13v4h-13z'/%3E%3Cpath d='M100.5 55h9v4h-9z'/%3E%3Cpath d='M101.5 59h7v4h-7z'/%3E%3C/g%3E%3Cpath d='M0 96 50 76 88 92 124 72 168 90 214 74 254 88 300 78 300 118 0 118Z' fill='%2383917e' opacity='.5'/%3E%3Cpath d='M0 118 26 108 70 114 120 106 180 112 240 106 300 110 300 118Z' fill='%236f7d6c' opacity='.45'/%3E%3C/svg%3E") center / cover no-repeat;
+}
+.ward-thumbs {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  overflow-x: auto;
+  border-top: 1px solid #5a6744;
+  background: #6b7a52;
+  flex-shrink: 0;
+}
+.ward-thumb {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  opacity: 0.62;
+  transition: opacity 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.ward-thumb:hover { opacity: 1; }
+.ward-thumb.is-active {
+  border-color: var(--cinnabar);
+  opacity: 1;
+}
+
+/* 右：文页（题签 + 小印 + 正文） */
+.ward-modal-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  min-height: 0; /* 纵向布局（手机版）下允许收缩，否则 .ward-scroll 滚动不生效 */
+  padding: 8px; /* 内框红线之内才是版面（滚动裁剪随之收进框内） */
+}
+.ward-modal-info::before {
+  /* 版框内线：文字滚动的消失边界 */
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(158, 59, 44, 0.55);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
+}
+.ward-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(158, 59, 44, 0.4);
+  background: transparent;
+  color: var(--cinnabar);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.ward-close:hover {
+  background: var(--cinnabar);
+  color: var(--paper);
+}
+.ward-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 22px 14px;
+  /* 滑动条与右侧菜单一致 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+.ward-scroll::-webkit-scrollbar { width: 6px; }
+.ward-scroll::-webkit-scrollbar-track { background: transparent; }
+.ward-scroll::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 3px;
+}
+.ward-scroll::-webkit-scrollbar-thumb:hover { background: var(--cinnabar); }
+.ward-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding-right: 34px;
+}
+.ward-title {
+  font-family: var(--font-brush);
+  font-size: 34px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.ward-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+.ward-lore {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--ink);
+  text-align: justify;
+}
+
+@media (max-width: 720px) {
+  .ward-modal {
+    flex-direction: column;
+    height: min(640px, 90vh);
+  }
+  .ward-modal-img {
+    width: 100%;
+    height: 42%;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .ward-title { font-size: 26px; }
+  .ward-scroll { padding: 16px 16px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ward-overlay, .ward-modal { animation: none; }
+}
+
+/* ── 首访引导 ── */
+.intro-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(42, 36, 27, 0.45);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  animation: veil-in 0.5s ease;
+}
+@keyframes veil-in { from { opacity: 0; } }
+.intro-card {
+  width: min(420px, calc(100vw - 40px));
+  background:
+    var(--silk-noise),
+    linear-gradient(168deg, #fbf7ee, #efe3c4);
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.3);
+  outline-offset: 4px;
+  padding: 30px 30px 26px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: card-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+@keyframes card-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } }
+.intro-seal {
+  position: absolute;
+  top: -18px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  text-align: center;
+  font-family: var(--font-brush);
+  font-size: 24px;
+  color: var(--silk);
+  background: var(--cinnabar);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(124, 45, 28, 0.45), inset 0 0 6px rgba(0, 0, 0, 0.3);
+  transform: rotate(6deg);
+}
+.intro-card h2 {
+  font-family: var(--font-brush);
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.intro-card p { font-size: 13.5px; line-height: 1.9; color: var(--ink-soft); }
+.intro-card strong, .intro-card b { color: var(--cinnabar-deep); }
+.intro-card ul { list-style: none; margin: 14px 0 4px; }
+.intro-card li {
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 5px 0 5px 22px;
+  position: relative;
+  color: var(--ink);
+}
+.intro-card li::before {
+  content: '◆';
+  position: absolute;
+  left: 2px;
+  color: var(--gold);
+  font-size: 9px;
+  top: 9px;
+}
+.intro-btn {
+  display: block;
+  margin: 18px auto 0;
+  padding: 9px 42px;
+  font-family: var(--font-brush);
+  font-size: 19px;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  color: var(--silk);
+  background: linear-gradient(180deg, var(--vermilion), var(--cinnabar-deep));
+  border: 1px solid var(--cinnabar-deep);
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(124, 45, 28, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.intro-btn:hover { transform: translateY(-2px); box-shadow: 0 9px 22px rgba(124, 45, 28, 0.5); }
+
+/* ── 舆图考 ── */
+.kao-page {
+  height: 100dvh;
+  overflow-y: auto;
+  background:
+    var(--silk-noise),
+    linear-gradient(180deg, #efe6cf, #e6d8b6);
+  padding: 48px 20px 80px;
+}
+.kao-paper {
+  max-width: 660px;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  outline: 1px solid rgba(158, 59, 44, 0.25);
+  outline-offset: 5px;
+  padding: 48px 52px 42px;
+  box-shadow: 0 20px 50px rgba(42, 36, 27, 0.25);
+}
+.kao-back {
+  font-size: 13px;
+  color: var(--cinnabar);
+  text-decoration: none;
+  letter-spacing: 0.05em;
+}
+.kao-back:hover { color: var(--cinnabar-deep); }
+.kao-paper h1 {
+  font-family: var(--font-brush);
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  margin: 18px 0 6px;
+  color: var(--ink);
+}
+.kao-lede {
+  font-size: 14px;
+  line-height: 2;
+  color: var(--ink-soft);
+  border-bottom: 1px dashed var(--hairline);
+  padding-bottom: 18px;
+}
+.kao-paper h2 {
+  font-family: var(--font-xi);
+  font-size: 20px;
+  color: var(--cinnabar-deep);
+  letter-spacing: 0.15em;
+  margin: 28px 0 10px;
+}
+.kao-paper p, .kao-paper li { font-size: 13.5px; line-height: 2; color: var(--ink); }
+.kao-paper ul { padding-left: 20px; }
+.kao-paper li { margin-bottom: 4px; }
+.kao-paper b, .kao-paper strong { color: var(--cinnabar-deep); }
+.kao-colophon {
+  margin-top: 34px;
+  text-align: center;
+  font-family: var(--font-xi);
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--ink-soft);
+}
+
+/* ── 地图控件配色 ── */
+.maplibregl-ctrl-group {
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 6px 16px rgba(42, 36, 27, 0.18) !important;
+}
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--hairline); }
+.maplibregl-ctrl-attrib {
+  font-family: sans-serif;
+  font-size: 10px;
+  background: rgba(250, 246, 236, 0.8) !important;
+}
+
+/* ── 移动端 / 平板竖屏（≤900px，含 iPad 竖屏）──
+   设计原则：做减法。顶部去盒子（印章+落款浮于图上），
+   底部把"时空滑杆 + 古今寻迹"合并为同一块面板——
+   窄滑杆常驻底边，景点列表自其上方展开。整屏只剩"上轻、下一块"。*/
+@media (max-width: 900px) {
+  /* ① 题签：与桌面同款卡片（绢底 + 边框），缩至红印 + logo */
+  .title-card {
+    top: max(11px, env(safe-area-inset-top));
+    left: 12px;
+    right: auto;
+    gap: 10px;
+    padding: 7px 12px 7px 8px;
+    background:
+      var(--silk-noise),
+      linear-gradient(168deg, rgba(250, 246, 236, 0.96), rgba(240, 229, 200, 0.96));
+    border: 1px solid var(--hairline);
+    outline: 1px solid rgba(158, 59, 44, 0.25);
+    outline-offset: 2px;
+    box-shadow: 0 8px 22px rgba(42, 36, 27, 0.18);
+    align-items: center;
+  }
+  .title-seal { font-size: 17px; line-height: 1.1; padding: 5px 7px; }
+  .title-text p { display: none; }
+  .title-link {
+    align-self: center;
+    margin-left: 2px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    background: rgba(250, 246, 236, 0.82);
+  }
+
+  /* ② 语言切换：右上角轻钮 */
+  .lang {
+    top: max(11px, env(safe-area-inset-top));
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+  .lang-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    outline: none;
+    box-shadow: 0 2px 8px rgba(42, 36, 27, 0.12);
+  }
+  .lang-current { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lang-menu { left: auto; right: 0; transform: none; }
+
+  /* ③ 底部滑杆：窄条常驻底边，无外凸铜钱 */
+  .dock {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    padding: 15px 18px calc(6px + env(safe-area-inset-bottom));
+    border: none;
+    border-top: 1px solid var(--hairline);
+    outline: none;
+    border-radius: 0;
+    box-shadow: 0 -6px 20px rgba(42, 36, 27, 0.1);
+    z-index: 12;
+  }
+  .dock-slider .dock-preset { display: none; } /* 移动端去铜钱，滑杆即够 */
+  .dock-slider { margin-top: 0; gap: 12px; }
+  .dock-end { font-size: 10.5px; }
+  .dock-caption { display: none; }
+
+  /* ④ 古今寻迹：与滑杆合为一块，自把手上方展开 */
+  .poi-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: calc(37px + env(safe-area-inset-bottom)); /* 紧贴滑杆之上 */
+    width: 100%;
+    height: auto;
+    flex-direction: column;
+    transform: none !important; /* 覆盖桌面 translateX */
+    z-index: 11;
+  }
+  .poi-scroll {
+    border: 1px solid var(--hairline);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(42, 36, 27, 0.14);
+    max-height: 50dvh;
+    overflow-y: auto;
+    transition: max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease;
+  }
+  .poi-panel.closed .poi-scroll {
+    max-height: 0;
+    opacity: 0;
+    border: none;
+    box-shadow: none;
+    overflow: hidden;
+  }
+  /* 把手：常驻于列表与滑杆之间 */
+  .poi-toggle {
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    padding: 10px 16px;
+    gap: 8px;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid var(--cinnabar-deep);
+    border-bottom: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--cinnabar);
+    color: #fff;
+  }
+  .poi-panel.closed .poi-toggle {
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 24px rgba(42, 36, 27, 0.12);
+  }
+  .poi-toggle-text { writing-mode: horizontal-tb; letter-spacing: 0.22em; font-size: 13px; color: #fff; }
+  .poi-toggle-arrow { display: none; }
+  .poi-toggle::after {
+    content: '⌃';
+    font-size: 12px;
+    color: #fff;
+  }
+  .poi-panel:not(.closed) .poi-toggle::after { content: '⌄'; }
+  /* 列表内标题与把手重复，移动端隐藏大标题，仅留副标题作上下文 */
+  .poi-header { position: static; padding: 12px 16px 8px; }
+  .poi-header h2 { display: none; }
+  .poi-header p { font-size: 11.5px; }
+
+  /* 地图缩放/定位控件：上移，避让底部面板 */
+  .maplibregl-ctrl-bottom-left { bottom: 96px; }
+
+  .tang-label-ward { font-size: 11px; }
+  .tang-label-palace { font-size: 16px; }
+  .tang-label-market { font-size: 15px; }
+
+  .kao-paper { padding: 30px 24px; }
+}
+
+/* ── 史料入口印章（题签右下，无文字） ── */
+.title-seal-link {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-brush);
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 6px;
+  color: var(--cinnabar);
+  text-decoration: none;
+  border: 1px solid rgba(158, 59, 44, 0.45);
+  border-radius: 3px;
+  margin-left: 6px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.title-seal-link:hover {
+  color: var(--cinnabar-deep);
+  border-color: var(--cinnabar-deep);
+  background: rgba(158, 59, 44, 0.06);
+}
+/* ── 诗踪：诗人卡片与停留点 ── */
+.poet-card {
+  background: rgba(255, 252, 244, 0.6);
+  border: 1px solid rgba(205, 187, 144, 0.6);
+  padding: 0;
+  margin-bottom: 8px;
+}
+.poet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.poet-head.active { background: rgba(200, 164, 90, 0.12); }
+.poet-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 252, 244, 0.9), 0 0 6px rgba(42, 36, 27, 0.35);
+}
+.poet-name {
+  font-family: var(--font-xi);
+  font-size: 14.5px;
+  color: var(--ink);
+  letter-spacing: 0.08em;
+}
+.poet-era { font-size: 10.5px; color: var(--ink-faded); }
+.poet-counts { margin-left: auto; font-size: 10.5px; color: var(--ink-soft); white-space: nowrap; }
+.poet-stops { list-style: none; margin: 0; padding: 2px 12px 10px; }
+.poet-stop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+  border-top: 1px dashed rgba(139, 115, 85, 0.25);
+  cursor: pointer;
+}
+.poet-stop:hover .poet-stop-label { color: var(--cinnabar-deep); }
+.poet-stop-idx {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.poet-stop-label { font-size: 12px; color: var(--ink); }
+.poet-stop.period {
+  width: 100%;
+  font-size: 10px;
+  color: var(--ink-faded);
+  padding-left: 22px;
+  cursor: default;
+}
+
+/* 地图轨迹编号圆点 */
+.traj-stop {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  border: 2px solid rgba(240, 234, 216, 0.95);
+  box-shadow: 0 2px 6px rgba(42, 36, 27, 0.45);
+  cursor: pointer;
+}
+.traj-pop { padding: 2px 0; }
+.traj-pop-poet { font-size: 11px; color: #9e3b2c; letter-spacing: 0.1em; margin: 0 0 2px; }
+.traj-pop-fang { font-size: 15px; font-weight: 700; color: #2c1810; margin: 0 0 2px; }
+.traj-pop-period { font-size: 11px; color: #8b7355; margin: 0 0 4px; }
+.traj-pop-event { font-size: 12.5px; color: #2c1810; line-height: 1.7; margin: 0 0 4px; }
+.traj-pop-poem { font-size: 11.5px; color: #8b7355; font-style: italic; margin: 0; }
+
+/* ── 猜诗：线索卡片与答题 ── */
+.quiz-score { font-size: 11.5px; color: var(--ink-soft); margin: 2px 14px 10px; }
+.quiz-score em { color: var(--cinnabar); font-style: normal; font-weight: 700; }
+.clue-card {
+  background: rgba(255, 252, 244, 0.6);
+  border: 1px solid rgba(205, 187, 144, 0.6);
+  margin-bottom: 8px;
+}
+.clue-card.solved { opacity: 0.62; }
+.clue-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.clue-fig {
+  font-size: 11px;
+  color: var(--cinnabar-deep);
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.clue-diff { color: var(--gold); font-size: 9px; letter-spacing: 2px; }
+.clue-prompt { font-size: 12.5px; color: var(--ink); line-height: 1.8; }
+.clue-solved-mark {
+  font-size: 10.5px;
+  color: var(--gold);
+  letter-spacing: 0.06em;
+}
+.clue-answer { padding: 0 12px 12px; }
+.quiz-input { display: flex; gap: 8px; margin-bottom: 8px; }
+.quiz-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 252, 244, 0.85);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  letter-spacing: 0.15em;
+  border-radius: 3px;
+}
+.quiz-input input:focus { border-color: var(--cinnabar); outline: none; }
+.quiz-hint-btn, .quiz-submit {
+  padding: 6px 14px;
+  border: 1px solid rgba(139, 115, 85, 0.5);
+  background: rgba(255, 252, 244, 0.9);
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.quiz-hint-btn:hover { border-color: var(--cinnabar); color: var(--cinnabar-deep); }
+.quiz-submit {
+  border-color: var(--cinnabar);
+  color: var(--cinnabar-deep);
+}
+.quiz-submit:hover { background: var(--cinnabar); color: var(--silk); }
+.clue-hint {
+  font-size: 11.5px;
+  color: var(--ink-faded);
+  margin: 0 0 8px;
+}
+.quiz-result {
+  font-size: 12.5px;
+  margin: 8px 0 0;
+  padding: 7px 8px;
+  text-align: center;
+  border-radius: 3px;
+  letter-spacing: 0.06em;
+}
+.quiz-result.correct {
+  background: rgba(196, 162, 78, 0.22);
+  color: var(--ink);
+  border: 1px solid rgba(196, 162, 78, 0.6);
+}
+.quiz-result.wrong {
+  background: rgba(158, 59, 44, 0.08);
+  color: var(--cinnabar-deep);
+  border: 1px solid rgba(158, 59, 44, 0.4);
+}
